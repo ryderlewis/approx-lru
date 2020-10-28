@@ -26,27 +26,39 @@ func TestLRU(t *testing.T) {
 		t.Fatalf("bad evict count: %v", evictCounter)
 	}
 
-	for i, k := range l.Keys() {
-		if v, ok := l.Get(k); !ok || v != k || v != i+128 {
+	for k := range l.items {
+		if v, ok := l.Get(k); !ok || v != k {
 			t.Fatalf("bad key: %v", k)
 		}
 	}
+	stale := 0
 	for i := 0; i < 128; i++ {
 		_, ok := l.Get(i)
 		if ok {
-			t.Fatalf("should be evicted")
+			stale++
 		}
 	}
+	// if we had a perfect LRU, this would be 0.  since we are approximating an LRU, this is slightly non-zero
+	if stale > 16 {
+		t.Fatalf("too many stale: %d", stale)
+	}
+
+	diedBeforeTheirTime := 0
 	for i := 128; i < 256; i++ {
 		_, ok := l.Get(i)
 		if !ok {
-			t.Fatalf("should not be evicted")
+			diedBeforeTheirTime++
 		}
 	}
+	// if we had a perfect LRU, this would be 0.  since we are approximating an LRU, this is slightly non-zero
+	if diedBeforeTheirTime > 16 {
+		t.Fatalf("too many 'new' evicted early: %d", diedBeforeTheirTime)
+	}
+
 	for i := 128; i < 192; i++ {
 		ok := l.Remove(i)
 		if !ok {
-			t.Fatalf("should be contained")
+			continue
 		}
 		ok = l.Remove(i)
 		if ok {
@@ -60,11 +72,11 @@ func TestLRU(t *testing.T) {
 
 	l.Get(192) // expect 192 to be last key in l.Keys()
 
-	for i, k := range l.Keys() {
+	/*for k := range l.items {
 		if (i < 63 && k != i+193) || (i == 63 && k != 192) {
 			t.Fatalf("out of order key: %v", k)
 		}
-	}
+	}*/
 
 	l.Purge()
 	if l.Len() != 0 {
@@ -72,39 +84,6 @@ func TestLRU(t *testing.T) {
 	}
 	if _, ok := l.Get(200); ok {
 		t.Fatalf("should contain nothing")
-	}
-}
-
-func TestLRU_GetOldest_RemoveOldest(t *testing.T) {
-	l, err := NewLRU(128, nil)
-	if err != nil {
-		t.Fatalf("err: %v", err)
-	}
-	for i := 0; i < 256; i++ {
-		l.Add(i, i)
-	}
-	k, _, ok := l.GetOldest()
-	if !ok {
-		t.Fatalf("missing")
-	}
-	if k.(int) != 128 {
-		t.Fatalf("bad: %v", k)
-	}
-
-	k, _, ok = l.RemoveOldest()
-	if !ok {
-		t.Fatalf("missing")
-	}
-	if k.(int) != 128 {
-		t.Fatalf("bad: %v", k)
-	}
-
-	k, _, ok = l.RemoveOldest()
-	if !ok {
-		t.Fatalf("missing")
-	}
-	if k.(int) != 129 {
-		t.Fatalf("bad: %v", k)
 	}
 }
 
@@ -156,6 +135,9 @@ func TestLRU_Peek(t *testing.T) {
 
 	l.Add(1, 1)
 	l.Add(2, 2)
+	if l.Len() != 2 {
+		t.Errorf("expected Len to be 2")
+	}
 	if v, ok := l.Peek(1); !ok || v != 1 {
 		t.Errorf("1 should be set to 1: %v, %v", v, ok)
 	}

@@ -20,15 +20,6 @@ type LRUCache interface {
 	// Removes a key from the cache.
 	Remove(key interface{}) bool
 
-	// Removes the oldest entry from cache.
-	RemoveOldest() (interface{}, interface{}, bool)
-
-	// Returns the oldest entry from the cache. #key, value, isFound
-	GetOldest() (interface{}, interface{}, bool)
-
-	// Returns a slice of the keys in the cache, from oldest to newest.
-	Keys() []interface{}
-
 	// Returns the number of items in the cache.
 	Len() int
 
