@@ -66,15 +66,14 @@ func (c *LRU) Add(key, value interface{}) (evicted bool) {
 	// Add new item
 	ent := entry{time.Now().UnixNano(), key, value}
 
-	// full -- need to pick a victim to evict
-	if len(c.data) == c.size {
+	if len(c.data) < c.size {
+		i := len(c.data)
+		c.data = append(c.data, ent)
+		c.items[key] = i
+	} else {
 		evicted = true
 		i := c.removeOldest()
 		c.data[i] = ent
-		c.items[key] = i
-	} else {
-		i := len(c.data)
-		c.data = append(c.data, ent)
 		c.items[key] = i
 	}
 
