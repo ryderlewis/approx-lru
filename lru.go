@@ -117,30 +117,6 @@ func (c *Cache) Resize(size int) (evicted int) {
 	return evicted
 }
 
-// RemoveOldest removes the oldest item from the cache.
-func (c *Cache) RemoveOldest() (key, value interface{}, ok bool) {
-	c.lock.Lock()
-	key, value, ok = c.lru.RemoveOldest()
-	c.lock.Unlock()
-	return
-}
-
-// GetOldest returns the oldest entry
-func (c *Cache) GetOldest() (key, value interface{}, ok bool) {
-	c.lock.Lock()
-	key, value, ok = c.lru.GetOldest()
-	c.lock.Unlock()
-	return
-}
-
-// Keys returns a slice of the keys in the cache, from oldest to newest.
-func (c *Cache) Keys() []interface{} {
-	c.lock.RLock()
-	keys := c.lru.Keys()
-	c.lock.RUnlock()
-	return keys
-}
-
 // Len returns the number of items in the cache.
 func (c *Cache) Len() int {
 	c.lock.RLock()

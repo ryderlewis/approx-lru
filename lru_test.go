@@ -90,23 +90,30 @@ func TestLRU(t *testing.T) {
 		t.Fatalf("bad evict count: %v", evictCounter)
 	}
 
-	for i, k := range l.Keys() {
-		if v, ok := l.Get(k); !ok || v != k || v != i+128 {
-			t.Fatalf("bad key: %v", k)
-		}
-	}
+		stale := 0
 	for i := 0; i < 128; i++ {
 		_, ok := l.Get(i)
 		if ok {
-			t.Fatalf("should be evicted")
+			stale++
 		}
 	}
+	// if we had a perfect LRU, this would be 0.  since we are approximating an LRU, this is slightly non-zero
+	if stale > 16 {
+		t.Fatalf("too many stale: %d", stale)
+	}
+
+	diedBeforeTheirTime := 0
 	for i := 128; i < 256; i++ {
 		_, ok := l.Get(i)
 		if !ok {
-			t.Fatalf("should not be evicted")
+			diedBeforeTheirTime++
 		}
 	}
+	// if we had a perfect LRU, this would be 0.  since we are approximating an LRU, this is slightly non-zero
+	if diedBeforeTheirTime > 16 {
+		t.Fatalf("too many 'new' evicted early: %d", diedBeforeTheirTime)
+	}
+
 	for i := 128; i < 192; i++ {
 		l.Remove(i)
 		_, ok := l.Get(i)
@@ -117,11 +124,11 @@ func TestLRU(t *testing.T) {
 
 	l.Get(192) // expect 192 to be last key in l.Keys()
 
-	for i, k := range l.Keys() {
+	/*for i, k := range l.Keys() {
 		if (i < 63 && k != i+193) || (i == 63 && k != 192) {
 			t.Fatalf("out of order key: %v", k)
 		}
-	}
+	}*/
 
 	l.Purge()
 	if l.Len() != 0 {
@@ -268,9 +275,10 @@ func TestLRUResize(t *testing.T) {
 	l.Add(1, 1)
 	l.Add(2, 2)
 	evicted := l.Resize(1)
-	if evicted != 1 {
-		t.Errorf("1 element should have been evicted: %v", evicted)
-	}
+	// no guarantees
+	//if evicted != 1 {
+	//	t.Errorf("1 element should have been evicted: %v", evicted)
+	//}
 	if onEvictCounter != 1 {
 		t.Errorf("onEvicted should have been called 1 time: %v", onEvictCounter)
 	}
