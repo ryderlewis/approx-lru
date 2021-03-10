@@ -142,13 +142,41 @@ func (c *LRU) removeOldest() (off int) {
 	}
 	i := c.rng.Intn(size)
 	oldest := &c.data[i]
-	for try := 1; try < randomProbes; try++ {
-		j := c.rng.Intn(size)
-		candidate := &c.data[j]
-		if candidate.lastUsed < oldest.lastUsed {
-			i = j
-			oldest = candidate
-		}
+	// manually unroll the loop
+	// iteration 1
+	j := c.rng.Intn(size)
+	candidate := &c.data[j]
+	if candidate.lastUsed < oldest.lastUsed {
+		i = j
+		oldest = candidate
+	}
+	// iteration 2
+	j = c.rng.Intn(size)
+	candidate = &c.data[j]
+	if candidate.lastUsed < oldest.lastUsed {
+		i = j
+		oldest = candidate
+	}
+	// iteration 3
+	j = c.rng.Intn(size)
+	candidate = &c.data[j]
+	if candidate.lastUsed < oldest.lastUsed {
+		i = j
+		oldest = candidate
+	}
+	// iteration 4
+	j = c.rng.Intn(size)
+	candidate = &c.data[j]
+	if candidate.lastUsed < oldest.lastUsed {
+		i = j
+		oldest = candidate
+	}
+	// iteration 5
+	j = c.rng.Intn(size)
+	candidate = &c.data[j]
+	if candidate.lastUsed < oldest.lastUsed {
+		i = j
+		oldest = candidate
 	}
 
 	// we could have found an empty slot
