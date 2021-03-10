@@ -3,7 +3,17 @@ package lru
 import (
 	"math/rand"
 	"testing"
+	"time"
 )
+
+func hackSleep() {
+	// on macOS, UnixNanos() has a max resolution of microseconds.  Sleep
+	// just a smidge here to ensure we evict the right item below.  In production
+	// this wouldn't matter since we are an approximate LRU: if two items have a
+	// timestamp within a micosecond of each other, either one would be old enough
+	// to evict
+	time.Sleep(1000 * time.Microsecond)
+}
 
 func BenchmarkLRU_Rand(b *testing.B) {
 	l, err := New(8192)
@@ -186,6 +196,7 @@ func TestLRUContainsOrAdd(t *testing.T) {
 	}
 
 	l.Add(1, 1)
+	hackSleep()
 	l.Add(2, 2)
 	contains, evict := l.ContainsOrAdd(1, 1)
 	if !contains {
@@ -249,6 +260,7 @@ func TestLRUPeek(t *testing.T) {
 	}
 
 	l.Add(1, 1)
+	hackSleep()
 	l.Add(2, 2)
 	if v, ok := l.Peek(1); !ok || v != 1 {
 		t.Errorf("1 should be set to 1: %v, %v", v, ok)
@@ -273,6 +285,7 @@ func TestLRUResize(t *testing.T) {
 
 	// Downsize
 	l.Add(1, 1)
+	hackSleep()
 	l.Add(2, 2)
 	evicted := l.Resize(1)
 	// no guarantees
@@ -283,7 +296,9 @@ func TestLRUResize(t *testing.T) {
 		t.Errorf("onEvicted should have been called 1 time: %v", onEvictCounter)
 	}
 
+	hackSleep()
 	l.Add(3, 3)
+	hackSleep()
 	if l.Contains(1) {
 		t.Errorf("Element 1 should have been evicted")
 	}

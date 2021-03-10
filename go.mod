@@ -1,3 +1,3 @@
-module github.com/hashicorp/golang-lru
+module github.com/bobby-stripe/approx-lru
 
 go 1.15

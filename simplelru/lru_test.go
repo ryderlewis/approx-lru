@@ -1,6 +1,18 @@
 package simplelru
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
+
+func hackSleep() {
+	// on macOS, UnixNanos() has a max resolution of microseconds.  Sleep
+	// just a smidge here to ensure we evict the right item below.  In production
+	// this wouldn't matter since we are an approximate LRU: if two items have a
+	// timestamp within a micosecond of each other, either one would be old enough
+	// to evict
+	time.Sleep(1 * time.Microsecond)
+}
 
 func TestLRU(t *testing.T) {
 	evictCounter := 0
@@ -17,6 +29,7 @@ func TestLRU(t *testing.T) {
 
 	for i := 0; i < 256; i++ {
 		l.Add(i, i)
+		hackSleep()
 	}
 	if l.Len() != 128 {
 		t.Fatalf("bad len: %v", l.Len())
@@ -39,7 +52,7 @@ func TestLRU(t *testing.T) {
 		}
 	}
 	// if we had a perfect LRU, this would be 0.  since we are approximating an LRU, this is slightly non-zero
-	if stale > 16 {
+	if stale > 20 {
 		t.Fatalf("too many stale: %d", stale)
 	}
 
@@ -51,7 +64,7 @@ func TestLRU(t *testing.T) {
 		}
 	}
 	// if we had a perfect LRU, this would be 0.  since we are approximating an LRU, this is slightly non-zero
-	if diedBeforeTheirTime > 16 {
+	if diedBeforeTheirTime > 20 {
 		t.Fatalf("too many 'new' evicted early: %d", diedBeforeTheirTime)
 	}
 
@@ -115,11 +128,13 @@ func TestLRU_Contains(t *testing.T) {
 	}
 
 	l.Add(1, 1)
+	hackSleep()
 	l.Add(2, 2)
 	if !l.Contains(1) {
 		t.Errorf("1 should be contained")
 	}
 
+	hackSleep()
 	l.Add(3, 3)
 	if l.Contains(1) {
 		t.Errorf("Contains should not have updated recent-ness of 1")
@@ -134,6 +149,7 @@ func TestLRU_Peek(t *testing.T) {
 	}
 
 	l.Add(1, 1)
+	hackSleep()
 	l.Add(2, 2)
 	if l.Len() != 2 {
 		t.Errorf("expected Len to be 2")
@@ -161,7 +177,9 @@ func TestLRU_Resize(t *testing.T) {
 
 	// Downsize
 	l.Add(1, 1)
+	hackSleep()
 	l.Add(2, 2)
+	hackSleep()
 	evicted := l.Resize(1)
 	if evicted != 1 {
 		t.Errorf("1 element should have been evicted: %v", evicted)
@@ -170,6 +188,7 @@ func TestLRU_Resize(t *testing.T) {
 		t.Errorf("onEvicted should have been called 1 time: %v", onEvictCounter)
 	}
 
+	hackSleep()
 	l.Add(3, 3)
 	if l.Contains(1) {
 		t.Errorf("Element 1 should have been evicted")
@@ -181,6 +200,7 @@ func TestLRU_Resize(t *testing.T) {
 		t.Errorf("0 elements should have been evicted: %v", evicted)
 	}
 
+	hackSleep()
 	l.Add(4, 4)
 	if !l.Contains(3) || !l.Contains(4) {
 		t.Errorf("Cache should have contained 2 elements")
