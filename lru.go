@@ -3,7 +3,7 @@ package lru
 import (
 	"sync"
 
-	"github.com/bobby-stripe/approx-lru/simplelru"
+	"github.com/bpowers/approx-lru/simplelru"
 )
 
 // Cache is a thread-safe fixed size LRU cache.
