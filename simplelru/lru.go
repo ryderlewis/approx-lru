@@ -19,54 +19,54 @@ func newRand() *rand.Rand {
 }
 
 // EvictCallback is used to get a callback when a cache entry is evicted
-type EvictCallback func(key interface{}, value interface{})
+type EvictCallback[K comparable, V any] func(key K, value V)
 
 // LRU implements a non-thread safe fixed size LRU cache
-type LRU struct {
+type LRU[K comparable, V any] struct {
 	rng     rand.Rand
 	size    int
-	data    []entry
-	items   map[interface{}]int
-	onEvict EvictCallback
+	data    []entry[K, V]
+	items   map[K]int
+	onEvict EvictCallback[K, V]
 }
 
 const randomProbes = 8
 
 // entry is used to hold a value in the evictList
-type entry struct {
+type entry[K comparable, V any] struct {
 	lastUsed int64
-	key      interface{}
-	value    interface{}
+	key      K
+	value    V
 }
 
 // NewLRU constructs an LRU of the given size
-func NewLRU(size int, onEvict EvictCallback) (*LRU, error) {
+func NewLRU[K comparable, V any](size int, onEvict EvictCallback[K, V]) (*LRU[K, V], error) {
 	if size <= 0 {
 		return nil, errors.New("must provide a positive size")
 	}
-	c := &LRU{
+	c := &LRU[K, V]{
 		rng:     *newRand(),
 		size:    size,
-		data:    make([]entry, 0, size),
-		items:   make(map[interface{}]int),
+		data:    make([]entry[K, V], 0, size),
+		items:   make(map[K]int),
 		onEvict: onEvict,
 	}
 	return c, nil
 }
 
 // Purge is used to completely clear the cache.
-func (c *LRU) Purge() {
+func (c *LRU[K, V]) Purge() {
 	for k, i := range c.items {
 		if c.onEvict != nil {
 			c.onEvict(k, c.data[i].value)
 		}
 	}
 	c.data = c.data[0:0]
-	c.items = make(map[interface{}]int)
+	c.items = make(map[K]int)
 }
 
 //go:noinline
-func (c *LRU) shuffle() {
+func (c *LRU[K, V]) shuffle() {
 	c.rng.Shuffle(len(c.data), func(i, j int) {
 		c.items[c.data[i].key] = j
 		c.items[c.data[j].key] = i
@@ -76,7 +76,7 @@ func (c *LRU) shuffle() {
 }
 
 // Add adds a value to the cache.  Returns true if an eviction occurred.
-func (c *LRU) Add(key, value interface{}) (evicted bool) {
+func (c *LRU[K, V]) Add(key K, value V) (evicted bool) {
 	// Check for existing item
 	if i, ok := c.items[key]; ok {
 		entry := &c.data[i]
@@ -86,7 +86,7 @@ func (c *LRU) Add(key, value interface{}) (evicted bool) {
 	}
 
 	// Add new item
-	ent := entry{time.Now().UnixNano(), key, value}
+	ent := entry[K, V]{time.Now().UnixNano(), key, value}
 
 	if len(c.data) < c.size {
 		i := len(c.data)
@@ -109,7 +109,7 @@ func (c *LRU) Add(key, value interface{}) (evicted bool) {
 }
 
 // Get looks up a key's value from the cache.
-func (c *LRU) Get(key interface{}) (value interface{}, ok bool) {
+func (c *LRU[K, V]) Get(key K) (value V, ok bool) {
 	if i, ok := c.items[key]; ok {
 		entry := &c.data[i]
 		entry.lastUsed = time.Now().UnixNano()
@@ -120,23 +120,23 @@ func (c *LRU) Get(key interface{}) (value interface{}, ok bool) {
 
 // Contains checks if a key is in the cache, without updating the recent-ness
 // or deleting it for being stale.
-func (c *LRU) Contains(key interface{}) (ok bool) {
+func (c *LRU[K, V]) Contains(key K) (ok bool) {
 	_, ok = c.items[key]
 	return ok
 }
 
 // Peek returns the key value (or undefined if not found) without updating
 // the "recently used"-ness of the key.
-func (c *LRU) Peek(key interface{}) (value interface{}, ok bool) {
+func (c *LRU[K, V]) Peek(key K) (value V, ok bool) {
 	if i, ok := c.items[key]; ok {
 		return c.data[i].value, true
 	}
-	return nil, false
+	return value, false
 }
 
 // Remove removes the provided key from the cache, returning if the
 // key was contained.
-func (c *LRU) Remove(key interface{}) (present bool) {
+func (c *LRU[K, V]) Remove(key K) (present bool) {
 	if i, ok := c.items[key]; ok {
 		c.removeElement(i, c.data[i])
 		return true
@@ -145,12 +145,12 @@ func (c *LRU) Remove(key interface{}) (present bool) {
 }
 
 // Len returns the number of items in the cache.
-func (c *LRU) Len() int {
+func (c *LRU[K, V]) Len() int {
 	return len(c.items)
 }
 
 // Resize changes the cache size.
-func (c *LRU) Resize(size int) (evicted int) {
+func (c *LRU[K, V]) Resize(size int) (evicted int) {
 	diff := c.Len() - size
 	if diff < 0 {
 		diff = 0
@@ -163,7 +163,7 @@ func (c *LRU) Resize(size int) (evicted int) {
 }
 
 // removeOldest removes the oldest item from the cache.
-func (c *LRU) removeOldest() (off int) {
+func (c *LRU[K, V]) removeOldest() (off int) {
 	size := c.Len()
 	if size <= 0 {
 		return -1
@@ -181,15 +181,15 @@ func (c *LRU) removeOldest() (off int) {
 	}
 
 	// we could have found an empty slot
-	if oldest.key != nil {
+	if oldest.lastUsed != 0 {
 		c.removeElement(oldestOff, oldest)
 	}
 	return oldestOff
 }
 
 // removeElement is used to remove a given list element from the cache
-func (c *LRU) removeElement(i int, ent entry) {
-	c.data[i] = entry{}
+func (c *LRU[K, V]) removeElement(i int, ent entry[K, V]) {
+	c.data[i] = entry[K, V]{}
 	delete(c.items, ent.key)
 	if c.onEvict != nil {
 		c.onEvict(ent.key, ent.value)

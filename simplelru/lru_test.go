@@ -16,13 +16,13 @@ func hackSleep() {
 
 func TestLRU(t *testing.T) {
 	evictCounter := 0
-	onEvicted := func(k interface{}, v interface{}) {
+	onEvicted := func(k, v int) {
 		if k != v {
 			t.Fatalf("Evict values not equal (%v!=%v)", k, v)
 		}
 		evictCounter++
 	}
-	l, err := NewLRU(128, onEvicted)
+	l, err := NewLRU[int, int](128, onEvicted)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -103,11 +103,11 @@ func TestLRU(t *testing.T) {
 // Test that Add returns true/false if an eviction occurred
 func TestLRU_Add(t *testing.T) {
 	evictCounter := 0
-	onEvicted := func(k interface{}, v interface{}) {
+	onEvicted := func(k, v int) {
 		evictCounter++
 	}
 
-	l, err := NewLRU(1, onEvicted)
+	l, err := NewLRU[int, int](1, onEvicted)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestLRU_Add(t *testing.T) {
 
 // Test that Contains doesn't update recent-ness
 func TestLRU_Contains(t *testing.T) {
-	l, err := NewLRU(2, nil)
+	l, err := NewLRU[int, int](2, nil)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -143,7 +143,7 @@ func TestLRU_Contains(t *testing.T) {
 
 // Test that Peek doesn't update recent-ness
 func TestLRU_Peek(t *testing.T) {
-	l, err := NewLRU(2, nil)
+	l, err := NewLRU[int, int](2, nil)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -167,10 +167,10 @@ func TestLRU_Peek(t *testing.T) {
 // Test that Resize can upsize and downsize
 func TestLRU_Resize(t *testing.T) {
 	onEvictCounter := 0
-	onEvicted := func(k interface{}, v interface{}) {
+	onEvicted := func(k, v int) {
 		onEvictCounter++
 	}
-	l, err := NewLRU(2, onEvicted)
+	l, err := NewLRU[int, int](2, onEvicted)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
