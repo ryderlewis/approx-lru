@@ -100,7 +100,7 @@ func TestLRU(t *testing.T) {
 		t.Fatalf("bad evict count: %v", evictCounter)
 	}
 
-		stale := 0
+	stale := 0
 	for i := 0; i < 128; i++ {
 		_, ok := l.Get(i)
 		if ok {
@@ -108,7 +108,7 @@ func TestLRU(t *testing.T) {
 		}
 	}
 	// if we had a perfect LRU, this would be 0.  since we are approximating an LRU, this is slightly non-zero
-	if stale > 16 {
+	if stale > 20 {
 		t.Fatalf("too many stale: %d", stale)
 	}
 

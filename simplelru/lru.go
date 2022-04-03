@@ -1,21 +1,33 @@
 package simplelru
 
 import (
+	crand "crypto/rand"
+	"encoding/binary"
 	"errors"
 	"math/rand"
 	"time"
 )
+
+func newRand() *rand.Rand {
+	seedBytes := make([]byte, 8)
+	if _, err := crand.Read(seedBytes); err != nil {
+		panic(err)
+	}
+	seed := binary.LittleEndian.Uint64(seedBytes)
+
+	return rand.New(rand.NewSource(int64(seed)))
+}
 
 // EvictCallback is used to get a callback when a cache entry is evicted
 type EvictCallback func(key interface{}, value interface{})
 
 // LRU implements a non-thread safe fixed size LRU cache
 type LRU struct {
-	rng       rand.Rand
-	size      int
-	data      []entry
-	items     map[interface{}]int
-	onEvict   EvictCallback
+	rng     rand.Rand
+	size    int
+	data    []entry
+	items   map[interface{}]int
+	onEvict EvictCallback
 }
 
 const randomProbes = 6
@@ -23,8 +35,8 @@ const randomProbes = 6
 // entry is used to hold a value in the evictList
 type entry struct {
 	lastUsed int64
-	key   interface{}
-	value interface{}
+	key      interface{}
+	value    interface{}
 }
 
 // NewLRU constructs an LRU of the given size
@@ -33,11 +45,11 @@ func NewLRU(size int, onEvict EvictCallback) (*LRU, error) {
 		return nil, errors.New("must provide a positive size")
 	}
 	c := &LRU{
-		rng:       *rand.New(rand.NewSource(rand.Int63())),
-		size:      size,
-		data:      make([]entry, 0, size),
-		items:     make(map[interface{}]int),
-		onEvict:   onEvict,
+		rng:     *newRand(),
+		size:    size,
+		data:    make([]entry, 0, size),
+		items:   make(map[interface{}]int),
+		onEvict: onEvict,
 	}
 	return c, nil
 }
@@ -51,6 +63,16 @@ func (c *LRU) Purge() {
 	}
 	c.data = c.data[0:0]
 	c.items = make(map[interface{}]int)
+}
+
+//go:noinline
+func (c *LRU) shuffle() {
+	c.rng.Shuffle(len(c.data), func(i, j int) {
+		c.items[c.data[i].key] = j
+		c.items[c.data[j].key] = i
+
+		c.data[i], c.data[j] = c.data[j], c.data[i]
+	})
 }
 
 // Add adds a value to the cache.  Returns true if an eviction occurred.
@@ -70,6 +92,12 @@ func (c *LRU) Add(key, value interface{}) (evicted bool) {
 		i := len(c.data)
 		c.data = append(c.data, ent)
 		c.items[key] = i
+		// if we have filled up the cache for the first time, shuffle
+		// the items to ensure they are randomly distributed in the array.
+		// we need this to ensure our random probing is correct.
+		if len(c.data) == c.size {
+			c.shuffle()
+		}
 	} else {
 		evicted = true
 		i := c.removeOldest()
@@ -140,50 +168,23 @@ func (c *LRU) removeOldest() (off int) {
 	if size <= 0 {
 		return -1
 	}
-	i := c.rng.Intn(size)
-	oldest := &c.data[i]
-	// manually unroll the loop
-	// iteration 1
-	j := c.rng.Intn(size)
-	candidate := &c.data[j]
-	if candidate.lastUsed < oldest.lastUsed {
-		i = j
-		oldest = candidate
-	}
-	// iteration 2
-	j = c.rng.Intn(size)
-	candidate = &c.data[j]
-	if candidate.lastUsed < oldest.lastUsed {
-		i = j
-		oldest = candidate
-	}
-	// iteration 3
-	j = c.rng.Intn(size)
-	candidate = &c.data[j]
-	if candidate.lastUsed < oldest.lastUsed {
-		i = j
-		oldest = candidate
-	}
-	// iteration 4
-	j = c.rng.Intn(size)
-	candidate = &c.data[j]
-	if candidate.lastUsed < oldest.lastUsed {
-		i = j
-		oldest = candidate
-	}
-	// iteration 5
-	j = c.rng.Intn(size)
-	candidate = &c.data[j]
-	if candidate.lastUsed < oldest.lastUsed {
-		i = j
-		oldest = candidate
+	base := c.rng.Intn(size)
+	oldestOff := base
+	oldest := c.data[base]
+	for j := 1; j < randomProbes; j++ {
+		off := (base + j) % size
+		candidate := &c.data[off]
+		if candidate.lastUsed < oldest.lastUsed {
+			oldestOff = off
+			oldest = *candidate
+		}
 	}
 
 	// we could have found an empty slot
 	if oldest.key != nil {
-		c.removeElement(i, *oldest)
+		c.removeElement(oldestOff, oldest)
 	}
-	return i
+	return oldestOff
 }
 
 // removeElement is used to remove a given list element from the cache
