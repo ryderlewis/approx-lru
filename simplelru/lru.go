@@ -48,7 +48,7 @@ func NewLRU[K comparable, V any](size int, onEvict EvictCallback[K, V]) (*LRU[K,
 	}
 	c := &LRU[K, V]{
 		data:    make([]entry[K, V], 0, size),
-		items:   make(map[K]int),
+		items:   make(map[K]int, size),
 		counter: 1,
 		size:    size,
 		rng:     *newRand(),
