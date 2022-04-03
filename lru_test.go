@@ -110,7 +110,7 @@ func TestLRU(t *testing.T) {
 		}
 	}
 	// if we had a perfect LRU, this would be 0.  since we are approximating an LRU, this is slightly non-zero
-	if diedBeforeTheirTime > 18 {
+	if diedBeforeTheirTime > 20 {
 		t.Fatalf("too many 'new' evicted early: %d", diedBeforeTheirTime)
 	}
 
