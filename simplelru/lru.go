@@ -30,7 +30,7 @@ type LRU struct {
 	onEvict EvictCallback
 }
 
-const randomProbes = 6
+const randomProbes = 8
 
 // entry is used to hold a value in the evictList
 type entry struct {
