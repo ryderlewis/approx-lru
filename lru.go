@@ -8,8 +8,8 @@ import (
 
 // Cache is a thread-safe fixed size LRU cache.
 type Cache[K comparable, V any] struct {
-	lru  simplelru.LRUCache[K, V]
 	lock sync.RWMutex
+	lru  simplelru.LRU[K, V]
 }
 
 // New creates an LRU of the given size.
@@ -25,7 +25,7 @@ func NewWithEvict[K comparable, V any](size int, onEvicted func(key K, value V))
 		return nil, err
 	}
 	c := &Cache[K, V]{
-		lru: lru,
+		lru: *lru,
 	}
 	return c, nil
 }

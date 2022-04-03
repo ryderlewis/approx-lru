@@ -23,10 +23,10 @@ type EvictCallback[K comparable, V any] func(key K, value V)
 
 // LRU implements a non-thread safe fixed size LRU cache
 type LRU[K comparable, V any] struct {
-	rng     rand.Rand
-	size    int
 	data    []entry[K, V]
 	items   map[K]int
+	size    int
+	rng     rand.Rand
 	onEvict EvictCallback[K, V]
 }
 
