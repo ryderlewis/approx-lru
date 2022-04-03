@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"math/rand"
-	"time"
 )
 
 func newRand() *rand.Rand {
@@ -25,6 +24,7 @@ type EvictCallback[K comparable, V any] func(key K, value V)
 type LRU[K comparable, V any] struct {
 	data    []entry[K, V]
 	items   map[K]int
+	counter int64
 	size    int
 	rng     rand.Rand
 	onEvict EvictCallback[K, V]
@@ -45,13 +45,23 @@ func NewLRU[K comparable, V any](size int, onEvict EvictCallback[K, V]) (*LRU[K,
 		return nil, errors.New("must provide a positive size")
 	}
 	c := &LRU[K, V]{
-		rng:     *newRand(),
-		size:    size,
 		data:    make([]entry[K, V], 0, size),
 		items:   make(map[K]int),
+		counter: 1,
+		size:    size,
+		rng:     *newRand(),
 		onEvict: onEvict,
 	}
 	return c, nil
+}
+
+func (c *LRU[K, V]) getCounter() int64 {
+	n := c.counter
+	c.counter++
+	if c.counter < 0 {
+		panic("counter overflow; won't happen in practice :rip:")
+	}
+	return n
 }
 
 // Purge is used to completely clear the cache.
@@ -77,16 +87,17 @@ func (c *LRU[K, V]) shuffle() {
 
 // Add adds a value to the cache.  Returns true if an eviction occurred.
 func (c *LRU[K, V]) Add(key K, value V) (evicted bool) {
+	now := c.getCounter()
 	// Check for existing item
 	if i, ok := c.items[key]; ok {
 		entry := &c.data[i]
-		entry.lastUsed = time.Now().UnixNano()
+		entry.lastUsed = now
 		entry.value = value
 		return false
 	}
 
 	// Add new item
-	ent := entry[K, V]{time.Now().UnixNano(), key, value}
+	ent := entry[K, V]{now, key, value}
 
 	if len(c.data) < c.size {
 		i := len(c.data)
@@ -112,7 +123,7 @@ func (c *LRU[K, V]) Add(key K, value V) (evicted bool) {
 func (c *LRU[K, V]) Get(key K) (value V, ok bool) {
 	if i, ok := c.items[key]; ok {
 		entry := &c.data[i]
-		entry.lastUsed = time.Now().UnixNano()
+		entry.lastUsed = c.getCounter()
 		return entry.value, true
 	}
 	return
