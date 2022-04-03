@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"math/rand"
+
+	"golang.org/x/exp/slices"
 )
 
 func newRand() *rand.Rand {
@@ -166,10 +168,36 @@ func (c *LRU[K, V]) Resize(size int) (evicted int) {
 	if diff < 0 {
 		diff = 0
 	}
+	// sort in descending order
+	slices.SortFunc(c.data, func(a, b entry[K, V]) bool {
+		return a.lastUsed > b.lastUsed
+	})
+	for i, entry := range c.data {
+		if entry.lastUsed == 0 {
+			continue
+		}
+		c.items[entry.key] = i
+	}
+	oldSize := len(c.data)
 	for i := 0; i < diff; i++ {
-		c.removeOldest()
+		j := oldSize - 1 - i
+		entry := c.data[j]
+		if entry.lastUsed > 0 {
+			c.removeElement(j, entry)
+		}
 	}
 	c.size = size
+	if size < oldSize {
+		c.data = c.data[:size]
+	} else {
+		oldData := c.data
+		c.data = make([]entry[K, V], oldSize, size)
+		copy(c.data, oldData)
+	}
+	if len(c.data) != len(c.items) {
+		panic("we mucked it up")
+	}
+	c.shuffle()
 	return diff
 }
 
