@@ -182,12 +182,27 @@ func (c *LRU[K, V]) removeOldest() (off int) {
 	base := c.rng.Intn(size)
 	oldestOff := base
 	oldest := c.data[base]
-	for j := 1; j < randomProbes; j++ {
-		off := (base + j) % size
-		candidate := &c.data[off]
-		if candidate.lastUsed < oldest.lastUsed {
-			oldestOff = off
-			oldest = *candidate
+	// if our offset does NOT result in us wrapping off the end of the array
+	// (which is unlikely! should be predicted well), don't require `% size`
+	// as that is expensive.  duplicate the whole loop to put the conditional
+	// outside the loop rather than in it.
+	if base+randomProbes-1 < size {
+		for j := 1; j < randomProbes; j++ {
+			off := base + j
+			candidate := &c.data[off]
+			if candidate.lastUsed < oldest.lastUsed {
+				oldestOff = off
+				oldest = *candidate
+			}
+		}
+	} else {
+		for j := 1; j < randomProbes; j++ {
+			off := (base + j) % size
+			candidate := &c.data[off]
+			if candidate.lastUsed < oldest.lastUsed {
+				oldestOff = off
+				oldest = *candidate
+			}
 		}
 	}
 
