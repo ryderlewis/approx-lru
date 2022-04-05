@@ -25,3 +25,6 @@ _testmain.go
 # intellij
 *.iml
 /.idea
+
+*.txt
+*~
