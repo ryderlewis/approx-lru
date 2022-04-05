@@ -129,7 +129,7 @@ func BenchmarkLRU_Big(b *testing.B) {
 
 			i++
 		}
-		b.Logf("hit: %d miss: %d ratio: %f", hit, miss, float64(hit)/float64(miss))
+		// b.Logf("hit: %d miss: %d ratio: %f", hit, miss, float64(hit)/float64(miss))
 	})
 }
 
