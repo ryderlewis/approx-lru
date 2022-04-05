@@ -1,8 +1,6 @@
 package lru
 
 import (
-	"strconv"
-	"sync"
 	"testing"
 	"unsafe"
 )
@@ -18,32 +16,18 @@ func TestShardSize(t *testing.T) {
 }
 
 func BenchmarkLRU_BigSharded(b *testing.B) {
-	var rngMu sync.Mutex
-	rng := newRand()
-	rngMu.Lock()
 	l, err := NewSharded(128*1024, defaultShardCount)
 	if err != nil {
 		b.Fatalf("err: %v", err)
 	}
 
-	type traceEntry struct {
-		k string
-		v int64
-	}
-	trace := make([]traceEntry, b.N*2)
-	for i := 0; i < b.N*2; i++ {
-		n := rng.Int63() % (4 * 128 * 1024)
-		trace[i] = traceEntry{k: strconv.Itoa(int(n)), v: n}
-	}
-	rngMu.Unlock()
+	trace := makeTrace(b.N * 2)
 
 	b.ResetTimer()
 
 	b.ReportAllocs()
 	b.RunParallel(func(pb *testing.PB) {
-		rngMu.Lock()
-		seed := rng.Intn(len(trace))
-		rngMu.Unlock()
+		seed := newRand().Intn(len(trace))
 
 		var hit, miss int
 		i := seed

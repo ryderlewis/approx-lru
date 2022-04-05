@@ -38,7 +38,7 @@ func (c *Cache) Purge() {
 }
 
 // Add adds a value to the cache. Returns true if an eviction occurred.
-func (c *Cache) Add(key interface{}, value interface{}) (evicted bool) {
+func (c *Cache) Add(key string, value interface{}) (evicted bool) {
 	c.lock.Lock()
 	evicted = c.lru.Add(key, value)
 	c.lock.Unlock()
@@ -46,7 +46,7 @@ func (c *Cache) Add(key interface{}, value interface{}) (evicted bool) {
 }
 
 // Get looks up a key's value from the cache.
-func (c *Cache) Get(key interface{}) (value interface{}, ok bool) {
+func (c *Cache) Get(key string) (value interface{}, ok bool) {
 	c.lock.Lock()
 	value, ok = c.lru.Get(key)
 	c.lock.Unlock()
@@ -55,7 +55,7 @@ func (c *Cache) Get(key interface{}) (value interface{}, ok bool) {
 
 // Contains checks if a key is in the cache, without updating the
 // recent-ness or deleting it for being stale.
-func (c *Cache) Contains(key interface{}) bool {
+func (c *Cache) Contains(key string) bool {
 	c.lock.RLock()
 	containKey := c.lru.Contains(key)
 	c.lock.RUnlock()
@@ -64,7 +64,7 @@ func (c *Cache) Contains(key interface{}) bool {
 
 // Peek returns the key value (or undefined if not found) without updating
 // the "recently used"-ness of the key.
-func (c *Cache) Peek(key interface{}) (value interface{}, ok bool) {
+func (c *Cache) Peek(key string) (value interface{}, ok bool) {
 	c.lock.RLock()
 	value, ok = c.lru.Peek(key)
 	c.lock.RUnlock()
@@ -74,7 +74,7 @@ func (c *Cache) Peek(key interface{}) (value interface{}, ok bool) {
 // ContainsOrAdd checks if a key is in the cache without updating the
 // recent-ness or deleting it for being stale, and if not, adds the value.
 // Returns whether found and whether an eviction occurred.
-func (c *Cache) ContainsOrAdd(key interface{}, value interface{}) (ok, evicted bool) {
+func (c *Cache) ContainsOrAdd(key string, value interface{}) (ok, evicted bool) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -88,7 +88,7 @@ func (c *Cache) ContainsOrAdd(key interface{}, value interface{}) (ok, evicted b
 // PeekOrAdd checks if a key is in the cache without updating the
 // recent-ness or deleting it for being stale, and if not, adds the value.
 // Returns whether found and whether an eviction occurred.
-func (c *Cache) PeekOrAdd(key interface{}, value interface{}) (previous interface{}, ok, evicted bool) {
+func (c *Cache) PeekOrAdd(key string, value interface{}) (previous interface{}, ok, evicted bool) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -102,7 +102,7 @@ func (c *Cache) PeekOrAdd(key interface{}, value interface{}) (previous interfac
 }
 
 // Remove removes the provided key from the cache.
-func (c *Cache) Remove(key interface{}) (present bool) {
+func (c *Cache) Remove(key string) (present bool) {
 	c.lock.Lock()
 	present = c.lru.Remove(key)
 	c.lock.Unlock()

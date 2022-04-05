@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"math/rand"
 	"strconv"
-	"sync"
 	"testing"
 )
 
@@ -19,25 +18,39 @@ func newRand() *rand.Rand {
 	return rand.New(rand.NewSource(int64(seed)))
 }
 
+type traceEntry struct {
+	k string
+	v int64
+}
+
+func makeTrace(size int) []traceEntry {
+	rng := newRand()
+
+	trace := make([]traceEntry, size)
+	for i := 0; i < size; i++ {
+		n := rng.Int63() % (4 * 128 * 1024)
+		trace[i] = traceEntry{k: strconv.Itoa(int(n)), v: n}
+	}
+
+	return trace
+}
+
 func BenchmarkLRU_Rand(b *testing.B) {
 	l, err := New(8192)
 	if err != nil {
 		b.Fatalf("err: %v", err)
 	}
 
-	trace := make([]int64, b.N*2)
-	for i := 0; i < b.N*2; i++ {
-		trace[i] = rand.Int63() % 32768
-	}
+	trace := makeTrace(b.N * 2)
 
 	b.ResetTimer()
 
 	var hit, miss int
 	for i := 0; i < 2*b.N; i++ {
 		if i%2 == 0 {
-			l.Add(trace[i], trace[i])
+			l.Add(trace[i].k, trace[i].v)
 		} else {
-			_, ok := l.Get(trace[i])
+			_, ok := l.Get(trace[i].k)
 			if ok {
 				hit++
 			} else {
@@ -48,12 +61,14 @@ func BenchmarkLRU_Rand(b *testing.B) {
 	b.Logf("hit: %d miss: %d ratio: %f", hit, miss, float64(hit)/float64(miss))
 }
 
+/*
 func BenchmarkLRU_Freq(b *testing.B) {
 	l, err := New(8192)
 	if err != nil {
 		b.Fatalf("err: %v", err)
 	}
 
+	trace := makeTrace(b.N * 2)
 	trace := make([]int64, b.N*2)
 	for i := 0; i < b.N*2; i++ {
 		if i%2 == 0 {
@@ -190,12 +205,6 @@ func TestLRU(t *testing.T) {
 	}
 
 	l.Get(192) // expect 192 to be last key in l.Keys()
-
-	/*for i, k := range l.Keys() {
-		if (i < 63 && k != i+193) || (i == 63 && k != 192) {
-			t.Fatalf("out of order key: %v", k)
-		}
-	}*/
 
 	l.Purge()
 	if l.Len() != 0 {
@@ -366,3 +375,4 @@ func TestLRUResize(t *testing.T) {
 		t.Errorf("Cache should have contained 2 elements")
 	}
 }
+*/
