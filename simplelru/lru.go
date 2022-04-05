@@ -27,7 +27,7 @@ const LRUStructSize = 104
 
 // LRU implements a non-thread safe fixed size LRU cache
 type LRU struct {
-	items   map[string]int
+	items   map[interface{}]int
 	data    []entry
 	counter int64
 	size    int64
@@ -40,7 +40,7 @@ const randomProbes = 8
 // entry is used to hold a value in the evictList
 type entry struct {
 	lastUsed int64
-	key      string
+	key      interface{}
 	value    interface{}
 }
 
@@ -51,7 +51,7 @@ func NewLRU(size int, onEvict EvictCallback) (*LRU, error) {
 	}
 	c := &LRU{
 		data:    make([]entry, 0, size),
-		items:   make(map[string]int, size),
+		items:   make(map[interface{}]int, size),
 		counter: 1,
 		size:    int64(size),
 		rng:     *newRand(),
@@ -77,7 +77,7 @@ func (c *LRU) Purge() {
 		}
 	}
 	c.data = c.data[0:0]
-	c.items = make(map[string]int)
+	c.items = make(map[interface{}]int)
 }
 
 //go:noinline
@@ -91,7 +91,7 @@ func (c *LRU) shuffle() {
 }
 
 // Add adds a value to the cache.  Returns true if an eviction occurred.
-func (c *LRU) Add(key string, value interface{}) (evicted bool) {
+func (c *LRU) Add(key interface{}, value interface{}) (evicted bool) {
 	now := c.getCounter()
 	// Check for existing item
 	if i, ok := c.items[key]; ok {
@@ -125,7 +125,7 @@ func (c *LRU) Add(key string, value interface{}) (evicted bool) {
 }
 
 // Get looks up a key's value from the cache.
-func (c *LRU) Get(key string) (value interface{}, ok bool) {
+func (c *LRU) Get(key interface{}) (value interface{}, ok bool) {
 	if i, ok := c.items[key]; ok {
 		entry := &c.data[i]
 		entry.lastUsed = c.getCounter()
@@ -136,14 +136,14 @@ func (c *LRU) Get(key string) (value interface{}, ok bool) {
 
 // Contains checks if a key is in the cache, without updating the recent-ness
 // or deleting it for being stale.
-func (c *LRU) Contains(key string) (ok bool) {
+func (c *LRU) Contains(key interface{}) (ok bool) {
 	_, ok = c.items[key]
 	return ok
 }
 
 // Peek returns the key value (or undefined if not found) without updating
 // the "recently used"-ness of the key.
-func (c *LRU) Peek(key string) (value interface{}, ok bool) {
+func (c *LRU) Peek(key interface{}) (value interface{}, ok bool) {
 	if i, ok := c.items[key]; ok {
 		return c.data[i].value, true
 	}
@@ -152,7 +152,7 @@ func (c *LRU) Peek(key string) (value interface{}, ok bool) {
 
 // Remove removes the provided key from the cache, returning if the
 // key was contained.
-func (c *LRU) Remove(key string) (present bool) {
+func (c *LRU) Remove(key interface{}) (present bool) {
 	if i, ok := c.items[key]; ok {
 		c.removeElement(i, c.data[i])
 		return true
