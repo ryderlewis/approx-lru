@@ -3,6 +3,7 @@ package simplelru
 import (
 	"testing"
 	"time"
+	"unsafe"
 )
 
 func hackSleep() {
@@ -12,6 +13,24 @@ func hackSleep() {
 	// timestamp within a micosecond of each other, either one would be old enough
 	// to evict
 	time.Sleep(1 * time.Microsecond)
+}
+
+func TestSize(t *testing.T) {
+	// we need this to be a specific size for our sharding strategy in the outer package
+	const expected = LRUStructSize
+	actual := unsafe.Sizeof(LRU[int, int]{})
+	if expected != actual {
+		t.Fatalf("expected LRU to be of size %d, but is %d bytes", expected, actual)
+	}
+	// should be invariant of generic instantiation
+	actual = unsafe.Sizeof(LRU[string, *string]{})
+	if expected != actual {
+		t.Fatalf("expected LRU to be of size %d, but is %d bytes", expected, actual)
+	}
+
+	if 8 != unsafe.Sizeof(map[string]string{}) {
+		t.Fatalf("maps are pointers")
+	}
 }
 
 func TestLRU(t *testing.T) {
