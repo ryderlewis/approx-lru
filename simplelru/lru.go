@@ -22,12 +22,16 @@ func newRand() *rand.Rand {
 // EvictCallback is used to get a callback when a cache entry is evicted
 type EvictCallback[K comparable, V any] func(key K, value V)
 
+// TODO: move this to a file that is built only on 64-bit architectures and
+// calculate the right size for 32-byte architectures
+const LRUStructSize = 104
+
 // LRU implements a non-thread safe fixed size LRU cache
 type LRU[K comparable, V any] struct {
-	data    []entry[K, V]
 	items   map[K]int
+	data    []entry[K, V]
 	counter int64
-	size    int
+	size    int64
 	rng     rand.Rand
 	onEvict EvictCallback[K, V]
 }
@@ -50,7 +54,7 @@ func NewLRU[K comparable, V any](size int, onEvict EvictCallback[K, V]) (*LRU[K,
 		data:    make([]entry[K, V], 0, size),
 		items:   make(map[K]int, size),
 		counter: 1,
-		size:    size,
+		size:    int64(size),
 		rng:     *newRand(),
 		onEvict: onEvict,
 	}
@@ -101,14 +105,14 @@ func (c *LRU[K, V]) Add(key K, value V) (evicted bool) {
 	// Add new item
 	ent := entry[K, V]{now, key, value}
 
-	if len(c.data) < c.size {
+	if int64(len(c.data)) < c.size {
 		i := len(c.data)
 		c.data = append(c.data, ent)
 		c.items[key] = i
 		// if we have filled up the cache for the first time, shuffle
 		// the items to ensure they are randomly distributed in the array.
 		// we need this to ensure our random probing is correct.
-		if len(c.data) == c.size {
+		if int64(len(c.data)) == c.size {
 			c.shuffle()
 		}
 	} else {
@@ -186,7 +190,7 @@ func (c *LRU[K, V]) Resize(size int) (evicted int) {
 			c.removeElement(j, entry)
 		}
 	}
-	c.size = size
+	c.size = int64(size)
 	if size < oldSize {
 		c.data = c.data[:size]
 	} else {
