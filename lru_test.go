@@ -1,9 +1,23 @@
 package lru
 
 import (
+	crand "crypto/rand"
+	"encoding/binary"
 	"math/rand"
+	"strconv"
+	"sync"
 	"testing"
 )
+
+func newRand() *rand.Rand {
+	seedBytes := make([]byte, 8)
+	if _, err := crand.Read(seedBytes); err != nil {
+		panic(err)
+	}
+	seed := binary.LittleEndian.Uint64(seedBytes)
+
+	return rand.New(rand.NewSource(int64(seed)))
+}
 
 func BenchmarkLRU_Rand(b *testing.B) {
 	l, err := New[int64, int64](8192)
@@ -64,6 +78,60 @@ func BenchmarkLRU_Freq(b *testing.B) {
 		}
 	}
 	b.Logf("hit: %d miss: %d ratio: %f", hit, miss, float64(hit)/float64(miss))
+}
+
+func BenchmarkLRU_Big(b *testing.B) {
+	var rngMu sync.Mutex
+	rng := newRand()
+	rngMu.Lock()
+	l, err := New[string, int64](128 * 1024)
+	if err != nil {
+		b.Fatalf("err: %v", err)
+	}
+
+	type traceEntry struct {
+		k string
+		v int64
+	}
+	trace := make([]traceEntry, b.N*2)
+	for i := 0; i < b.N*2; i++ {
+		n := rng.Int63() % (4 * 128 * 1024)
+		trace[i] = traceEntry{k: strconv.Itoa(int(n)), v: n}
+	}
+	rngMu.Unlock()
+
+	b.ResetTimer()
+
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		rngMu.Lock()
+		seed := rng.Intn(len(trace))
+		rngMu.Unlock()
+
+		var hit, miss int
+		i := seed
+		for pb.Next() {
+			// use a predictable if rather than % len(trace) to eek a little more perf out
+			if i >= len(trace) {
+				i = 0
+			}
+
+			t := trace[i]
+			if i%2 == 0 {
+				l.Add(t.k, t.v)
+			} else {
+				if _, ok := l.Get(t.k); ok {
+					hit++
+				} else {
+					miss++
+				}
+			}
+
+			i++
+		}
+		b.Logf("hit: %d miss: %d ratio: %f", hit, miss, float64(hit)/float64(miss))
+	})
+
 }
 
 func TestLRU(t *testing.T) {
