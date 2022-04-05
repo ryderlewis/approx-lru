@@ -12,7 +12,7 @@ func TestNewSharded(t *testing.T) {
 }
 
 func TestShardSize(t *testing.T) {
-	if 128 != unsafe.Sizeof(shard[int]{}) {
+	if 128 != unsafe.Sizeof(shard{}) {
 		t.Fatalf("expected shard to be 128-bytes in size")
 	}
 }
@@ -21,7 +21,7 @@ func BenchmarkLRU_BigSharded(b *testing.B) {
 	var rngMu sync.Mutex
 	rng := newRand()
 	rngMu.Lock()
-	l, err := NewSharded[int64](128*1024, defaultShardCount)
+	l, err := NewSharded(128*1024, defaultShardCount)
 	if err != nil {
 		b.Fatalf("err: %v", err)
 	}

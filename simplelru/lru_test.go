@@ -18,12 +18,7 @@ func hackSleep() {
 func TestSize(t *testing.T) {
 	// we need this to be a specific size for our sharding strategy in the outer package
 	const expected = LRUStructSize
-	actual := unsafe.Sizeof(LRU[int, int]{})
-	if expected != actual {
-		t.Fatalf("expected LRU to be of size %d, but is %d bytes", expected, actual)
-	}
-	// should be invariant of generic instantiation
-	actual = unsafe.Sizeof(LRU[string, *string]{})
+	actual := unsafe.Sizeof(LRU{})
 	if expected != actual {
 		t.Fatalf("expected LRU to be of size %d, but is %d bytes", expected, actual)
 	}
@@ -35,13 +30,13 @@ func TestSize(t *testing.T) {
 
 func TestLRU(t *testing.T) {
 	evictCounter := 0
-	onEvicted := func(k, v int) {
+	onEvicted := func(k, v interface{}) {
 		if k != v {
 			t.Fatalf("Evict values not equal (%v!=%v)", k, v)
 		}
 		evictCounter++
 	}
-	l, err := NewLRU[int, int](128, onEvicted)
+	l, err := NewLRU(128, onEvicted)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -122,11 +117,11 @@ func TestLRU(t *testing.T) {
 // Test that Add returns true/false if an eviction occurred
 func TestLRU_Add(t *testing.T) {
 	evictCounter := 0
-	onEvicted := func(k, v int) {
+	onEvicted := func(k, v interface{}) {
 		evictCounter++
 	}
 
-	l, err := NewLRU[int, int](1, onEvicted)
+	l, err := NewLRU(1, onEvicted)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -141,7 +136,7 @@ func TestLRU_Add(t *testing.T) {
 
 // Test that Contains doesn't update recent-ness
 func TestLRU_Contains(t *testing.T) {
-	l, err := NewLRU[int, int](2, nil)
+	l, err := NewLRU(2, nil)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -162,7 +157,7 @@ func TestLRU_Contains(t *testing.T) {
 
 // Test that Peek doesn't update recent-ness
 func TestLRU_Peek(t *testing.T) {
-	l, err := NewLRU[int, int](2, nil)
+	l, err := NewLRU(2, nil)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -186,10 +181,10 @@ func TestLRU_Peek(t *testing.T) {
 // Test that Resize can upsize and downsize
 func TestLRU_Resize(t *testing.T) {
 	onEvictCounter := 0
-	onEvicted := func(k, v int) {
+	onEvicted := func(k, v interface{}) {
 		onEvictCounter++
 	}
-	l, err := NewLRU[int, int](2, onEvicted)
+	l, err := NewLRU(2, onEvicted)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}

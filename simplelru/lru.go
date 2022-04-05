@@ -5,8 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"math/rand"
-
-	"golang.org/x/exp/slices"
+	"sort"
 )
 
 func newRand() *rand.Rand {
@@ -20,39 +19,39 @@ func newRand() *rand.Rand {
 }
 
 // EvictCallback is used to get a callback when a cache entry is evicted
-type EvictCallback[K comparable, V any] func(key K, value V)
+type EvictCallback func(key interface{}, value interface{})
 
 // TODO: move this to a file that is built only on 64-bit architectures and
 // calculate the right size for 32-byte architectures
 const LRUStructSize = 104
 
 // LRU implements a non-thread safe fixed size LRU cache
-type LRU[K comparable, V any] struct {
-	items   map[K]int
-	data    []entry[K, V]
+type LRU struct {
+	items   map[interface{}]int
+	data    []entry
 	counter int64
 	size    int64
 	rng     rand.Rand
-	onEvict EvictCallback[K, V]
+	onEvict EvictCallback
 }
 
 const randomProbes = 8
 
 // entry is used to hold a value in the evictList
-type entry[K comparable, V any] struct {
+type entry struct {
 	lastUsed int64
-	key      K
-	value    V
+	key      interface{}
+	value    interface{}
 }
 
 // NewLRU constructs an LRU of the given size
-func NewLRU[K comparable, V any](size int, onEvict EvictCallback[K, V]) (*LRU[K, V], error) {
+func NewLRU(size int, onEvict EvictCallback) (*LRU, error) {
 	if size <= 0 {
 		return nil, errors.New("must provide a positive size")
 	}
-	c := &LRU[K, V]{
-		data:    make([]entry[K, V], 0, size),
-		items:   make(map[K]int, size),
+	c := &LRU{
+		data:    make([]entry, 0, size),
+		items:   make(map[interface{}]int, size),
 		counter: 1,
 		size:    int64(size),
 		rng:     *newRand(),
@@ -61,7 +60,7 @@ func NewLRU[K comparable, V any](size int, onEvict EvictCallback[K, V]) (*LRU[K,
 	return c, nil
 }
 
-func (c *LRU[K, V]) getCounter() int64 {
+func (c *LRU) getCounter() int64 {
 	n := c.counter
 	c.counter++
 	if c.counter < 0 {
@@ -71,18 +70,18 @@ func (c *LRU[K, V]) getCounter() int64 {
 }
 
 // Purge is used to completely clear the cache.
-func (c *LRU[K, V]) Purge() {
+func (c *LRU) Purge() {
 	for k, i := range c.items {
 		if c.onEvict != nil {
 			c.onEvict(k, c.data[i].value)
 		}
 	}
 	c.data = c.data[0:0]
-	c.items = make(map[K]int)
+	c.items = make(map[interface{}]int)
 }
 
 //go:noinline
-func (c *LRU[K, V]) shuffle() {
+func (c *LRU) shuffle() {
 	c.rng.Shuffle(len(c.data), func(i, j int) {
 		c.items[c.data[i].key] = j
 		c.items[c.data[j].key] = i
@@ -92,7 +91,7 @@ func (c *LRU[K, V]) shuffle() {
 }
 
 // Add adds a value to the cache.  Returns true if an eviction occurred.
-func (c *LRU[K, V]) Add(key K, value V) (evicted bool) {
+func (c *LRU) Add(key interface{}, value interface{}) (evicted bool) {
 	now := c.getCounter()
 	// Check for existing item
 	if i, ok := c.items[key]; ok {
@@ -103,7 +102,7 @@ func (c *LRU[K, V]) Add(key K, value V) (evicted bool) {
 	}
 
 	// Add new item
-	ent := entry[K, V]{now, key, value}
+	ent := entry{now, key, value}
 
 	if int64(len(c.data)) < c.size {
 		i := len(c.data)
@@ -126,7 +125,7 @@ func (c *LRU[K, V]) Add(key K, value V) (evicted bool) {
 }
 
 // Get looks up a key's value from the cache.
-func (c *LRU[K, V]) Get(key K) (value V, ok bool) {
+func (c *LRU) Get(key interface{}) (value interface{}, ok bool) {
 	if i, ok := c.items[key]; ok {
 		entry := &c.data[i]
 		entry.lastUsed = c.getCounter()
@@ -137,14 +136,14 @@ func (c *LRU[K, V]) Get(key K) (value V, ok bool) {
 
 // Contains checks if a key is in the cache, without updating the recent-ness
 // or deleting it for being stale.
-func (c *LRU[K, V]) Contains(key K) (ok bool) {
+func (c *LRU) Contains(key interface{}) (ok bool) {
 	_, ok = c.items[key]
 	return ok
 }
 
 // Peek returns the key value (or undefined if not found) without updating
 // the "recently used"-ness of the key.
-func (c *LRU[K, V]) Peek(key K) (value V, ok bool) {
+func (c *LRU) Peek(key interface{}) (value interface{}, ok bool) {
 	if i, ok := c.items[key]; ok {
 		return c.data[i].value, true
 	}
@@ -153,7 +152,7 @@ func (c *LRU[K, V]) Peek(key K) (value V, ok bool) {
 
 // Remove removes the provided key from the cache, returning if the
 // key was contained.
-func (c *LRU[K, V]) Remove(key K) (present bool) {
+func (c *LRU) Remove(key interface{}) (present bool) {
 	if i, ok := c.items[key]; ok {
 		c.removeElement(i, c.data[i])
 		return true
@@ -162,20 +161,24 @@ func (c *LRU[K, V]) Remove(key K) (present bool) {
 }
 
 // Len returns the number of items in the cache.
-func (c *LRU[K, V]) Len() int {
+func (c *LRU) Len() int {
 	return len(c.items)
 }
 
+type byLastUsed []entry
+
+func (a byLastUsed) Len() int           { return len(a) }
+func (a byLastUsed) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byLastUsed) Less(i, j int) bool { return a[i].lastUsed > a[j].lastUsed }
+
 // Resize changes the cache size.
-func (c *LRU[K, V]) Resize(size int) (evicted int) {
+func (c *LRU) Resize(size int) (evicted int) {
 	diff := c.Len() - size
 	if diff < 0 {
 		diff = 0
 	}
 	// sort in descending order
-	slices.SortFunc(c.data, func(a, b entry[K, V]) bool {
-		return a.lastUsed > b.lastUsed
-	})
+	sort.Sort(byLastUsed(c.data))
 	for i, entry := range c.data {
 		if entry.lastUsed == 0 {
 			continue
@@ -195,7 +198,7 @@ func (c *LRU[K, V]) Resize(size int) (evicted int) {
 		c.data = c.data[:size]
 	} else {
 		oldData := c.data
-		c.data = make([]entry[K, V], oldSize, size)
+		c.data = make([]entry, oldSize, size)
 		copy(c.data, oldData)
 	}
 	if len(c.data) != len(c.items) {
@@ -206,7 +209,7 @@ func (c *LRU[K, V]) Resize(size int) (evicted int) {
 }
 
 // removeOldest removes the oldest item from the cache.
-func (c *LRU[K, V]) removeOldest() (off int) {
+func (c *LRU) removeOldest() (off int) {
 	size := c.Len()
 	if size <= 0 {
 		return -1
@@ -246,8 +249,8 @@ func (c *LRU[K, V]) removeOldest() (off int) {
 }
 
 // removeElement is used to remove a given list element from the cache
-func (c *LRU[K, V]) removeElement(i int, ent entry[K, V]) {
-	c.data[i] = entry[K, V]{}
+func (c *LRU) removeElement(i int, ent entry) {
+	c.data[i] = entry{}
 	delete(c.items, ent.key)
 	if c.onEvict != nil {
 		c.onEvict(ent.key, ent.value)
